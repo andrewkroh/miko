@@ -76,12 +76,15 @@ func main() {
 }
 
 type miko struct {
-	ps      atomic.Pointer[os.Process]
-	results chan text
-	src     *TextWidget
-	data    *TextWidget
-	cfg     *TextWidget
-	display *TextWidget
+	ps           atomic.Pointer[os.Process]
+	results      chan text
+	src          *TextWidget
+	srcLineNums  *TextWidget
+	data         *TextWidget
+	dataLineNums *TextWidget
+	cfg          *TextWidget
+	cfgLineNums  *TextWidget
+	display      *TextWidget
 }
 
 type text struct {
@@ -180,6 +183,23 @@ func newMiko(font string, size, tw int) *miko {
 
 	scrollSrcX := TScrollbar(Command(func(e *Event) { e.Xview(m.src) }), Orient("horizontal"))
 	scrollSrcY := TScrollbar(Command(func(e *Event) { e.Yview(m.src) }), Orient("vertical"))
+
+	// Create line numbers text widget
+	m.srcLineNums = Text(
+		Font(face),
+		Width(5),
+		Wrap("none"),
+		Setgrid(true),
+		Background("#f0f0f0"),
+		Padx("2m"), Pady("1m"),
+		Blockcursor(false),
+		Takefocus(false),
+		State("disabled"),
+	)
+
+	// Configure text alignment for line numbers
+	m.srcLineNums.TagConfigure("right", Justify("right"))
+
 	m.src = Text(
 		Font(face),
 		Width(120),
@@ -192,11 +212,32 @@ func newMiko(font string, size, tw int) *miko {
 		Blockcursor(false),
 		Insertunfocussed("hollow"),
 		Xscrollcommand(func(e *Event) { e.ScrollSet(scrollSrcX) }),
-		Yscrollcommand(func(e *Event) { e.ScrollSet(scrollSrcY) }),
+		Yscrollcommand(func(e *Event) {
+			e.ScrollSet(scrollSrcY)
+			// Synchronize line numbers with src text area
+			m.updateLineNumbers()
+		}),
 	)
 
 	scrollDataX := TScrollbar(Command(func(e *Event) { e.Xview(m.data) }), Orient("horizontal"))
 	scrollDataY := TScrollbar(Command(func(e *Event) { e.Yview(m.data) }), Orient("vertical"))
+
+	// Create line numbers text widget for data
+	m.dataLineNums = Text(
+		Font(face),
+		Width(5),
+		Wrap("none"),
+		Setgrid(true),
+		Background("#f0f0f0"),
+		Padx("2m"), Pady("1m"),
+		Blockcursor(false),
+		Takefocus(false),
+		State("disabled"),
+	)
+
+	// Configure text alignment for line numbers
+	m.dataLineNums.TagConfigure("right", Justify("right"))
+
 	m.data = Text(
 		Font(face),
 		Width(120),
@@ -209,11 +250,32 @@ func newMiko(font string, size, tw int) *miko {
 		Blockcursor(false),
 		Insertunfocussed("hollow"),
 		Xscrollcommand(func(e *Event) { e.ScrollSet(scrollDataX) }),
-		Yscrollcommand(func(e *Event) { e.ScrollSet(scrollDataY) }),
+		Yscrollcommand(func(e *Event) {
+			e.ScrollSet(scrollDataY)
+			// Synchronize line numbers with data text area
+			m.updateLineNumbers()
+		}),
 	)
 
 	scrollConfigX := TScrollbar(Command(func(e *Event) { e.Xview(m.cfg) }), Orient("horizontal"))
 	scrollConfigY := TScrollbar(Command(func(e *Event) { e.Yview(m.cfg) }), Orient("vertical"))
+
+	// Create line numbers text widget for cfg
+	m.cfgLineNums = Text(
+		Font(face),
+		Width(5),
+		Wrap("none"),
+		Setgrid(true),
+		Background("#f0f0f0"),
+		Padx("2m"), Pady("1m"),
+		Blockcursor(false),
+		Takefocus(false),
+		State("disabled"),
+	)
+
+	// Configure text alignment for line numbers
+	m.cfgLineNums.TagConfigure("right", Justify("right"))
+
 	m.cfg = Text(
 		Font(face),
 		Width(120),
@@ -226,7 +288,11 @@ func newMiko(font string, size, tw int) *miko {
 		Blockcursor(false),
 		Insertunfocussed("hollow"),
 		Xscrollcommand(func(e *Event) { e.ScrollSet(scrollConfigX) }),
-		Yscrollcommand(func(e *Event) { e.ScrollSet(scrollConfigY) }),
+		Yscrollcommand(func(e *Event) {
+			e.ScrollSet(scrollConfigY)
+			// Synchronize line numbers with cfg text area
+			m.updateLineNumbers()
+		}),
 	)
 
 	scrollDisplayX := TScrollbar(Command(func(e *Event) { e.Xview(m.display) }), Orient("horizontal"))
@@ -255,23 +321,34 @@ func newMiko(font string, size, tw int) *miko {
 	Grid(clear, Row(0), Column(4), Sticky("news"))
 
 	Grid(Label(Anchor("w"), Txt("src (CEL)")), Row(1), Sticky("w"))
-	Grid(m.src, Row(2), Column(0), Columnspan(5), Sticky("news"))
+	Grid(m.srcLineNums, Row(2), Column(0), Sticky("ns"))
+	Grid(m.src, Row(2), Column(1), Columnspan(4), Sticky("news"))
 	Grid(scrollSrcY, Row(2), Column(5), Sticky("news"))
 	Grid(scrollSrcX, Row(3), Column(0), Columnspan(5), Sticky("news"))
 
 	Grid(Label(Anchor("w"), Txt("data (JSON)")), Row(4), Sticky("w"))
-	Grid(m.data, Row(5), Column(0), Columnspan(5), Sticky("news"))
+	Grid(m.dataLineNums, Row(5), Column(0), Sticky("ns"))
+	Grid(m.data, Row(5), Column(1), Columnspan(4), Sticky("news"))
 	Grid(scrollDataY, Row(5), Column(5), Sticky("news"))
 	Grid(scrollDataX, Row(6), Column(0), Columnspan(5), Sticky("news"))
 
 	Grid(Label(Anchor("w"), Txt("cfg (YAML)")), Row(7), Sticky("w"))
-	Grid(m.cfg, Row(8), Column(0), Columnspan(5), Sticky("news"))
+	Grid(m.cfgLineNums, Row(8), Column(0), Sticky("ns"))
+	Grid(m.cfg, Row(8), Column(1), Columnspan(4), Sticky("news"))
 	Grid(scrollConfigY, Row(8), Column(5), Sticky("news"))
 	Grid(scrollConfigX, Row(9), Column(0), Columnspan(5), Sticky("news"))
 
 	Grid(m.display, Row(0), Rowspan(9), Column(6), Sticky("news"))
 	Grid(scrollDisplayY, Row(0), Rowspan(9), Column(7), Sticky("news"))
 	Grid(scrollDisplayX, Row(9), Column(6), Sticky("news"))
+
+	// Initial update of line numbers
+	m.updateLineNumbers()
+
+	// Set up a ticker to periodically update line numbers
+	NewTicker(500*time.Millisecond, func() {
+		m.updateLineNumbers()
+	})
 
 	Focus(m.src)
 
@@ -420,4 +497,57 @@ func (m *miko) celfmt() (string, error) {
 		return "", fmt.Errorf("celfmt: %s", &stderr)
 	}
 	return stdout.String(), nil
+}
+
+// updateLineNumbers updates the line numbers in all line number text widgets
+// based on the content of their corresponding text widgets
+func (m *miko) updateLineNumbers() {
+	// Update src line numbers
+	if m.src != nil && m.srcLineNums != nil {
+		m.updateTextAreaLineNumbers(m.src, m.srcLineNums)
+	}
+
+	// Update data line numbers
+	if m.data != nil && m.dataLineNums != nil {
+		m.updateTextAreaLineNumbers(m.data, m.dataLineNums)
+	}
+
+	// Update cfg line numbers
+	if m.cfg != nil && m.cfgLineNums != nil {
+		m.updateTextAreaLineNumbers(m.cfg, m.cfgLineNums)
+	}
+}
+
+// updateTextAreaLineNumbers updates the line numbers for a specific text area
+func (m *miko) updateTextAreaLineNumbers(textArea, lineNumsWidget *TextWidget) {
+	// Get the total number of lines in the text widget
+	content := textArea.Text()
+	lineCount := 1
+	for _, ch := range content {
+		if ch == '\n' {
+			lineCount++
+		}
+	}
+
+	// Enable editing of the line numbers widget
+	lineNumsWidget.Configure(State("normal"))
+
+	// Clear the line numbers widget
+	lineNumsWidget.Clear()
+
+	// Add line numbers
+	for i := 1; i <= lineCount; i++ {
+		lineNumsWidget.Insert("end", fmt.Sprintf("%d\n", i), "right")
+	}
+
+	// Synchronize scrolling with the text widget
+	// Get the current first visible line from text area
+	firstLine := textArea.Index("@0,0")
+	if firstLine != "" {
+		// Set the same first visible line in the line numbers widget
+		lineNumsWidget.See(firstLine)
+	}
+
+	// Disable editing of the line numbers widget
+	lineNumsWidget.Configure(State("disabled"))
 }
